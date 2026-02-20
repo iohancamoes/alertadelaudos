@@ -1242,7 +1242,8 @@ tbody td {
 // ── STATE ──
 let data = [];
 let logData = [];
-let webUrl = localStorage.getItem('politec_url') || '';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyx8wa-8cNrOyMY-a6tJ-qAGO539hZOl10tf8Yz4A24jfhE2Prxcfa1s-f5pwqWzrc-/exec';
+let webUrl = localStorage.getItem('politec_url') || API_URL;
 
 // ── MOCK DATA ──
 function mockInit() {
@@ -1265,6 +1266,45 @@ function mockInit() {
     { dt: new Date(now-5*864e5), p:'2026/0003', perito:'Marcos Alves',    tipo:'Alerta 1 (Dia 11)', dias:14 },
   ];
   render();
+}
+
+// ── CARREGAR DA API ──
+async function carregarDados() {
+  try {
+    const [resOcorr, resLog] = await Promise.all([
+      fetch(webUrl + '?action=listar'),
+      fetch(webUrl + '?action=log')
+    ]);
+    const ocorr = await resOcorr.json();
+    const lg    = await resLog.json();
+
+    if (!Array.isArray(ocorr)) throw new Error('Resposta inválida');
+
+    data = ocorr.map(o => ({
+      p:    o.protocolo,
+      perito: o.perito,
+      ep:   o.emailPerito,
+      ec:   o.emailChefe,
+      da:   o.dataAtribuicao,
+      st:   o.status,
+      al:   o.alertasEnviados || '',
+      linha: o.linha
+    }));
+
+    logData = Array.isArray(lg) ? lg.map(l => ({
+      dt:    new Date(l.dataEnvio ? l.dataEnvio.split('/').reverse().join('-') : Date.now()),
+      p:     l.protocolo,
+      perito: l.perito,
+      tipo:  l.tipoAlerta,
+      dias:  l.diasAtraso
+    })) : [];
+
+    render();
+    toast('✅ Dados carregados da planilha!');
+  } catch(e) {
+    console.warn('API indisponível, usando demo:', e);
+    mockInit();
+  }
 }
 
 // ── HELPERS ──
@@ -1405,8 +1445,12 @@ function filtrar() {
 }
 
 function entregar(i) {
-  data[i].st = 'Entregue';
-  render();
+  const protocolo = data[i].p;
+  fetch(webUrl, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'entregar', protocolo })
+  }).then(() => carregarDados())
+    .catch(() => { data[i].st = 'Entregue'; render(); });
   toast('✅ Laudo marcado como entregue!');
 }
 
@@ -1420,8 +1464,21 @@ function salvar() {
   const s = document.getElementById('f-status').value;
   if (!p||!dr||!n||!e||!c) { toast('⚠️ Preencha todos os campos!','#f97316'); return; }
   const [y,m,d] = dr.split('-');
-  data.push({ p, perito:n, ep:e, ec:c, da:`${d}/${m}/${y}`, st:s, al:'' });
-  render(); limpar(); ir('ocorrencias', document.querySelectorAll('.nav-item')[1]);
+  // Salvar na API
+  fetch(webUrl, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'cadastrar',
+      protocolo: p, perito: n, emailPerito: e,
+      emailChefe: c, dataAtribuicao: dr, status: s
+    })
+  }).then(() => {
+    carregarDados();
+  }).catch(() => {
+    data.push({ p, perito:n, ep:e, ec:c, da:`${d}/${m}/${y}`, st:s, al:'' });
+    render();
+  });
+  limpar(); ir('ocorrencias', document.querySelectorAll('.nav-item')[1]);
   toast('✅ Ocorrência cadastrada!');
 }
 
@@ -1474,7 +1531,7 @@ function ir(id, el) {
 function sincronizar() {
   const ic = document.getElementById('sync-icon');
   ic.classList.add('spinning');
-  setTimeout(()=>{ ic.classList.remove('spinning'); render(); toast('✅ Dados sincronizados!'); }, 1400);
+  carregarDados().finally(() => ic.classList.remove('spinning'));
 }
 
 // ── TOAST ──
@@ -1488,7 +1545,7 @@ function toast(msg, bg='rgba(34,197,94,0.9)') {
 
 // ── INIT ──
 if (webUrl) document.getElementById('cfg-url').value = webUrl;
-mockInit();
+carregarDados();
 </script>
 </body>
 </html>
