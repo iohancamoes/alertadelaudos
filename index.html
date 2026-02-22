@@ -546,7 +546,7 @@ function mostrarResultadoImport(filtrados, totalLinhas, semData) {
 async function confirmarImportacao() {
   if (!dadosPendentesImport) return;
 
-  // 1. Aplicar dados imediatamente na interface (sempre funciona)
+  // 1. Aplicar dados imediatamente na interface
   data = dadosPendentesImport.map(d => ({
     p: d.protocolo,
     perito: d.perito,
@@ -558,23 +558,36 @@ async function confirmarImportacao() {
   }));
   render();
   cancelarImportacao();
-  toast(`✅ ${data.length} protocolos importados!`);
+  toast('⏳ Salvando na planilha Google…', 'rgba(59,130,246,0.9)');
 
-  // 2. Tentar salvar na planilha em segundo plano (não bloqueia)
+  // 2. Salvar na planilha via GET (CORS-safe) — envia em chunks de 50
   try {
-    const res = await fetch(webUrl, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'importar', dados: dadosPendentesImport })
-    });
-    // no-cors não retorna resposta legível, mas envia os dados
+    const chunkSize = 50;
+    const chunks = [];
+    for (let i = 0; i < dadosPendentesImportBkp.length; i += chunkSize) {
+      chunks.push(dadosPendentesImportBkp.slice(i, i + chunkSize));
+    }
+
+    let totalImportado = 0;
+    for (let c = 0; c < chunks.length; c++) {
+      const encoded = encodeURIComponent(JSON.stringify(chunks[c]));
+      const url = `${webUrl}?action=importar&dados=${encoded}&chunk=${c}&totalChunks=${chunks.length}`;
+      const res = await fetch(url);
+      const result = await res.json();
+      if (result.importados) totalImportado += result.importados;
+    }
+
+    toast(`✅ ${totalImportado} protocolos salvos na planilha!`);
   } catch(e) {
-    console.warn('Sync com planilha falhou (não crítico):', e.message);
+    toast('⚠️ Dados aplicados localmente. Verifique a URL da API na Configuração.', '#f97316');
+    console.error('Erro ao salvar na planilha:', e);
   }
 }
 
+let dadosPendentesImportBkp = null;
+
 function cancelarImportacao() {
+  dadosPendentesImportBkp = dadosPendentesImport; // guardar para envio à planilha
   dadosPendentesImport = null;
   document.getElementById('upload-result').style.display = 'none';
   document.getElementById('upload-zone').style.display = 'block';
@@ -747,16 +760,12 @@ function filtrar() {
 }
 
 function entregar(i) {
+  const proto = data[i].p;
   data[i].st = 'Entregue';
   render();
   toast('✅ Laudo marcado como entregue!');
-  // Sync em background
-  const proto = data[i].p;
-  fetch(webUrl, {
-    method:'POST', mode:'no-cors',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'entregar', protocolo:proto})
-  }).catch(()=>{});
+  fetch(`${webUrl}?action=entregar&protocolo=${encodeURIComponent(proto)}`)
+    .catch(() => {});
 }
 
 // ── Peritos ──
@@ -825,12 +834,8 @@ async function salvarEmailInline(idx, email, nome) {
   else peritos.push({ nome, email, gerencia });
   render();
   toast(`✅ E-mail de ${nome.split(' ')[0]} salvo!`);
-  // Sync em background
-  fetch(webUrl, {
-    method:'POST', mode:'no-cors',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'salvarPerito', nome, email, gerencia})
-  }).catch(()=>{});
+  fetch(`${webUrl}?action=salvarPerito&nome=${encodeURIComponent(nome)}&email=${encodeURIComponent(email)}&gerencia=${encodeURIComponent(gerencia||'')}`)
+    .catch(() => {});
 }
 
 function editarPerito(i) {
@@ -856,12 +861,8 @@ async function salvarPerito() {
   else peritos.push({nome,email,gerencia});
   render(); limparPerito();
   toast('✅ Perito salvo com sucesso!');
-  // Sync em background
-  fetch(webUrl, {
-    method:'POST', mode:'no-cors',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'salvarPerito', nome, email, gerencia})
-  }).catch(()=>{});
+  fetch(`${webUrl}?action=salvarPerito&nome=${encodeURIComponent(nome)}&email=${encodeURIComponent(email)}&gerencia=${encodeURIComponent(gerencia||'')}`)
+    .catch(() => {});
 }
 
 function limparPerito() {
@@ -922,7 +923,7 @@ function calcularProximoDisparo() {
 async function dispararAgora() {
   toast('⏳ Disparando alertas…','rgba(59,130,246,0.9)');
   try {
-    const res = await fetch(webUrl, { method:'POST', body:JSON.stringify({action:'dispararAlertas'}) });
+    const res = await fetch(`${webUrl}?action=dispararAlertas`);
     const r = await res.json();
     toast(`✅ ${r.emailsEnviados} e-mail(s) enviado(s)!`);
     carregarDados();
