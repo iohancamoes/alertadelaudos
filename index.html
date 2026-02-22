@@ -578,10 +578,19 @@ async function confirmarImportacao() {
       const payload = JSON.stringify(chunks[c]);
       const encoded = encodeURIComponent(payload);
       const url = `${webUrl}?action=importar&dados=${encoded}&chunk=${c}&totalChunks=${chunks.length}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
-      if (result.importados) totalImportado += result.importados;
+      let result;
+      try {
+        const res = await fetch(url);
+        result = await res.json();
+      } catch(fetchErr) {
+        console.warn(`Chunk ${c} falhou:`, fetchErr.message);
+        continue; // tenta próximo chunk mesmo se este falhar
+      }
+      console.log(`Chunk ${c} resposta:`, JSON.stringify(result));
+      if (result && result.importados) totalImportado += result.importados;
+      if (result && result.finalizado) {
+        totalImportado = result.importados; // usar total real do servidor
+      }
       // Pequena pausa entre chunks para não sobrecarregar o Apps Script
       if (c < chunks.length - 1) await new Promise(r => setTimeout(r, 500));
     }
@@ -605,16 +614,14 @@ function cancelarImportacao() {
 // ══════════════════════════════════════════
 async function carregarDados() {
   try {
-    const [resO, resL, resP] = await Promise.all([
-      fetch(webUrl + '?action=listar'),
-      fetch(webUrl + '?action=log'),
-      fetch(webUrl + '?action=peritos')
+    const fetchJson = url => fetch(url).then(r => r.json());
+    const [ocorr, lg, per] = await Promise.all([
+      fetchJson(webUrl + '?action=listar'),
+      fetchJson(webUrl + '?action=log'),
+      fetchJson(webUrl + '?action=peritos')
     ]);
-    const ocorr = await resO.json();
-    const lg    = await resL.json();
-    const per   = await resP.json();
 
-    if (!Array.isArray(ocorr)) throw new Error('inválido');
+    if (!Array.isArray(ocorr)) throw new Error('resposta inválida');
 
     data = ocorr.map(o => ({
       p: o.protocolo, perito: o.perito, ep: o.emailPerito, ec: o.emailChefe,
@@ -628,7 +635,8 @@ async function carregarDados() {
     render();
     toast('✅ Dados sincronizados!');
   } catch(e) {
-    mockInit();
+    console.warn('Falha ao carregar da API:', e.message);
+    mockInit(); // exibe vazio
   }
 }
 
@@ -636,18 +644,9 @@ async function carregarDados() {
 // MOCK
 // ══════════════════════════════════════════
 function mockInit() {
-  const ago = d => { const dt = new Date(); dt.setDate(dt.getDate()-d); return dt.toLocaleDateString('pt-BR'); };
-  data = [
-    { p:'2026/006521', perito:'JOELSON FRANCISCO DE SAMPAIO',   ep:'joelson@politec.mt.gov.br', ec:'', da:ago(22), st:'Pendente', al:'' },
-    { p:'2025/040136', perito:'CLAUDINE DE CAMPOS BARACAT',     ep:'',                          ec:'', da:ago(35), st:'Pendente', al:'' },
-    { p:'2025/053210', perito:'JOSÉ GERALDO FERREIRA FRANÇA',   ep:'jose@politec.mt.gov.br',    ec:'', da:ago(14), st:'Pendente', al:'' },
-    { p:'2026/007432', perito:'JOELSON FRANCISCO DE SAMPAIO',   ep:'joelson@politec.mt.gov.br', ec:'', da:ago(8),  st:'Pendente', al:'' },
-    { p:'2025/061234', perito:'MARIA SILVA DOS SANTOS',         ep:'',                          ec:'', da:ago(28), st:'Pendente', al:'' },
-  ];
-  peritos = [
-    { nome:'JOELSON FRANCISCO DE SAMPAIO', email:'joelson@politec.mt.gov.br', gerencia:'GERÊNCIA DE PERÍCIAS EM MORTES VIOLENTAS' },
-    { nome:'JOSÉ GERALDO FERREIRA FRANÇA', email:'jose@politec.mt.gov.br',    gerencia:'GERÊNCIA DE PERÍCIAS EM ENGENHARIA LEGAL' },
-  ];
+  // Sem dados de exemplo — exibe estado vazio
+  data = [];
+  peritos = [];
   logData = [];
   render();
 }
