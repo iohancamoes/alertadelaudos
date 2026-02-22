@@ -183,6 +183,9 @@ tbody td{padding:12px 16px;font-size:13px;vertical-align:middle;}
 .sem-email-row{background:rgba(251,191,36,.04) !important;}
 .email-tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;}
 .email-ok{color:#4ade80;} .email-vazio{color:#fbbf24;}
+.inline-email-input{height:30px;padding:0 10px;border-radius:7px;border:1px solid rgba(251,191,36,.3);background:rgba(251,191,36,.05);color:var(--text);font-family:var(--font);font-size:12px;outline:none;width:200px;transition:all .2s;}
+.inline-email-input:focus{border-color:rgba(37,99,235,.5);background:var(--surface2);}
+.inline-email-input::placeholder{color:var(--text-dim);}
 
 /* ── INFO BOX ── */
 .info-box{background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15);border-radius:10px;padding:13px 15px;font-size:13px;color:var(--text-muted);line-height:1.7;margin-bottom:16px;}
@@ -417,7 +420,7 @@ let data = [];
 let logData = [];
 let peritos = [];
 let dadosPendentesImport = null;
-const API_URL = 'https://script.google.com/macros/s/AKfycbxjbG2v_XxHrVOvpfGtkI3vPkI9JdGgdaXvY0H4JUVv4XK5AjY3aj2IlxDUV3Q-Pdw/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyx8wa-8cNrOyMY-a6tJ-qAGO539hZOl10tf8Yz4A24jfhE2Prxcfa1s-f5pwqWzrc-/exec';
 let webUrl = localStorage.getItem('politec_url') || API_URL;
 
 // ══════════════════════════════════════════
@@ -505,7 +508,7 @@ function mostrarResultadoImport(filtrados, totalLinhas, semData) {
   if (semEmail.length) {
     document.getElementById('sem-email-aviso').innerHTML = `
       <div class="sem-email-lista">
-        <div class="sem-email-titulo">⚠️ Peritos sem e-mail cadastrado — cadastre antes de disparar alertas:</div>
+        <div class="sem-email-titulo">⚠️ ${semEmail.length} perito(s) sem e-mail — o disparo de alertas será ignorado para eles. Cadastre os e-mails na aba Peritos.</div>
         ${semEmail.map(n => `<div class="sem-email-item">• ${n}</div>`).join('')}
       </div>`;
   } else {
@@ -727,23 +730,85 @@ function entregar(i) {
 // ── Peritos ──
 function renderPeritos(lista) {
   const tb = document.getElementById('peritos-tbody');
-  if (!lista.length) { tb.innerHTML=`<tr><td colspan="4"><div class="empty"><div class="empty-icon">👤</div><p>Nenhum perito cadastrado</p></div></td></tr>`; return; }
-  tb.innerHTML = lista.map((p,i) => `
-    <tr class="${!p.email?'sem-email-row':''}">
-      <td style="font-size:13px">${p.nome}</td>
-      <td>${p.email?`<span class="email-tag email-ok">✅ ${p.email}</span>`:`<span class="email-tag email-vazio">⚠️ Sem e-mail</span>`}</td>
+
+  // Mesclar: peritos cadastrados + peritos importados sem cadastro
+  const nomesImportados = [...new Set(data.map(o => o.perito))];
+  const nomesExistentes = new Set(lista.map(p => p.nome.toUpperCase()));
+  const apenasImportados = nomesImportados
+    .filter(n => !nomesExistentes.has(n.toUpperCase()))
+    .map(n => ({ nome: n, email: '', gerencia: '', soCadastrado: false }));
+  const listaCompleta = [...lista, ...apenasImportados];
+
+  if (!listaCompleta.length) {
+    tb.innerHTML=`<tr><td colspan="4"><div class="empty"><div class="empty-icon">👤</div><p>Nenhum perito encontrado. Faça o upload de um relatório primeiro.</p></div></td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = listaCompleta.map((p, i) => {
+    const temEmail = p.email && p.email.trim() !== '';
+    return `<tr class="${!temEmail ? 'sem-email-row' : ''}">
+      <td style="font-size:13px;font-weight:500">${p.nome}</td>
+      <td>
+        ${temEmail
+          ? `<div style="display:flex;align-items:center;gap:8px;">
+               <span class="email-tag email-ok">✅ ${p.email}</span>
+               <button class="action-btn" style="background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.2);color:var(--blue-glow);font-size:10px;padding:3px 8px;" onclick="editarPerito(${i}, listaCompletaAtual)">✏️</button>
+             </div>`
+          : `<div style="display:flex;align-items:center;gap:6px;">
+               <input type="email" class="inline-email-input" id="email-inline-${i}"
+                 placeholder="email@politec.mt.gov.br"
+                 onkeydown="if(event.key==='Enter') salvarEmailInline(${i}, this.value, '${p.nome.replace(/'/g,"\'")}')">
+               <button class="action-btn" style="background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.25);color:#4ade80;font-size:11px;white-space:nowrap;"
+                 onclick="salvarEmailInline(${i}, document.getElementById('email-inline-${i}').value, '${p.nome.replace(/'/g,"\'")}')">
+                 💾 Salvar
+               </button>
+             </div>`
+        }
+      </td>
       <td style="font-size:11px;color:var(--text-muted)">${p.gerencia||'—'}</td>
-      <td><button class="action-btn" style="background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25);color:var(--blue-glow);" onclick="editarPerito(${i})">✏️ Editar</button></td>
-    </tr>`).join('');
+      <td>${temEmail ? `<button class="action-btn" style="background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25);color:var(--blue-glow);" onclick="editarPerito(${i})">✏️ Editar</button>` : ''}</td>
+    </tr>`;
+  }).join('');
 }
 
-function filtrarPeritos(v) { renderPeritos(v ? peritos.filter(p=>p.nome.toLowerCase().includes(v.toLowerCase())) : peritos); }
+// Guarda lista para acesso inline
+let listaCompletaAtual = [];
+
+function filtrarPeritos(v) {
+  const nomesImportados = [...new Set(data.map(o => o.perito))];
+  const nomesExistentes = new Set(peritos.map(p => p.nome.toUpperCase()));
+  const apenasImportados = nomesImportados
+    .filter(n => !nomesExistentes.has(n.toUpperCase()))
+    .map(n => ({ nome: n, email: '', gerencia: '' }));
+  const lista = [...peritos, ...apenasImportados];
+  const filtrada = v ? lista.filter(p => p.nome.toLowerCase().includes(v.toLowerCase())) : lista;
+  renderPeritos(filtrada);
+}
+
+async function salvarEmailInline(idx, email, nome) {
+  if (!email || !email.includes('@')) { toast('⚠️ Digite um e-mail válido!','#f97316'); return; }
+  const gerencia = document.getElementById('p-gerencia') ? document.getElementById('p-gerencia').value : '';
+  try {
+    await fetch(webUrl, { method:'POST', body:JSON.stringify({action:'salvarPerito',nome,email,gerencia}) });
+  } catch(e) {}
+  const idx2 = peritos.findIndex(p => p.nome.toUpperCase() === nome.toUpperCase());
+  if (idx2 >= 0) peritos[idx2].email = email;
+  else peritos.push({ nome, email, gerencia });
+  render();
+  toast(`✅ E-mail de ${nome.split(' ')[0]} salvo!`);
+}
 
 function editarPerito(i) {
-  const p = peritos[i];
+  const nomesImportados = [...new Set(data.map(o => o.perito))];
+  const nomesExistentes = new Set(peritos.map(p => p.nome.toUpperCase()));
+  const apenasImportados = nomesImportados.filter(n => !nomesExistentes.has(n.toUpperCase())).map(n => ({ nome: n, email: '', gerencia: '' }));
+  const lista = [...peritos, ...apenasImportados];
+  const p = lista[i];
+  if (!p) return;
   document.getElementById('p-nome').value = p.nome;
   document.getElementById('p-email').value = p.email || '';
   document.getElementById('p-gerencia').value = p.gerencia || '';
+  document.getElementById('p-nome').scrollIntoView({ behavior: 'smooth' });
 }
 
 async function salvarPerito() {
