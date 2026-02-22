@@ -545,30 +545,32 @@ function mostrarResultadoImport(filtrados, totalLinhas, semData) {
 
 async function confirmarImportacao() {
   if (!dadosPendentesImport) return;
-  toast('⏳ Importando…', 'rgba(59,130,246,0.9)');
+
+  // 1. Aplicar dados imediatamente na interface (sempre funciona)
+  data = dadosPendentesImport.map(d => ({
+    p: d.protocolo,
+    perito: d.perito,
+    ep: emailDoPerito(d.perito),
+    ec: '',
+    da: new Date(d.dataAtribuicao).toLocaleDateString('pt-BR'),
+    st: 'Pendente',
+    al: ''
+  }));
+  render();
+  cancelarImportacao();
+  toast(`✅ ${data.length} protocolos importados!`);
+
+  // 2. Tentar salvar na planilha em segundo plano (não bloqueia)
   try {
     const res = await fetch(webUrl, {
       method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'importar', dados: dadosPendentesImport })
     });
-    const result = await res.json();
-    if (result.sucesso) {
-      let msg = `✅ ${result.importados} protocolos importados!`;
-      if (result.entreguesDetectados > 0) msg += ` ${result.entreguesDetectados} laudos entregues detectados.`;
-      toast(msg);
-      cancelarImportacao();
-      carregarDados();
-    }
+    // no-cors não retorna resposta legível, mas envia os dados
   } catch(e) {
-    // Modo offline: aplica localmente
-    data = dadosPendentesImport.map(d => ({
-      p: d.protocolo, perito: d.perito, ep: '', ec: '',
-      da: new Date(d.dataAtribuicao).toLocaleDateString('pt-BR'),
-      st: 'Pendente', al: ''
-    }));
-    render();
-    cancelarImportacao();
-    toast('✅ Importado localmente (modo demo)');
+    console.warn('Sync com planilha falhou (não crítico):', e.message);
   }
 }
 
@@ -745,10 +747,16 @@ function filtrar() {
 }
 
 function entregar(i) {
-  const proto = data[i].p;
-  fetch(webUrl, { method:'POST', body:JSON.stringify({action:'entregar',protocolo:proto}) })
-    .then(()=>carregarDados()).catch(()=>{data[i].st='Entregue';render();});
+  data[i].st = 'Entregue';
+  render();
   toast('✅ Laudo marcado como entregue!');
+  // Sync em background
+  const proto = data[i].p;
+  fetch(webUrl, {
+    method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({action:'entregar', protocolo:proto})
+  }).catch(()=>{});
 }
 
 // ── Peritos ──
@@ -812,14 +820,17 @@ function filtrarPeritos(v) {
 async function salvarEmailInline(idx, email, nome) {
   if (!email || !email.includes('@')) { toast('⚠️ Digite um e-mail válido!','#f97316'); return; }
   const gerencia = document.getElementById('p-gerencia') ? document.getElementById('p-gerencia').value : '';
-  try {
-    await fetch(webUrl, { method:'POST', body:JSON.stringify({action:'salvarPerito',nome,email,gerencia}) });
-  } catch(e) {}
   const idx2 = peritos.findIndex(p => p.nome.toUpperCase() === nome.toUpperCase());
   if (idx2 >= 0) peritos[idx2].email = email;
   else peritos.push({ nome, email, gerencia });
   render();
   toast(`✅ E-mail de ${nome.split(' ')[0]} salvo!`);
+  // Sync em background
+  fetch(webUrl, {
+    method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({action:'salvarPerito', nome, email, gerencia})
+  }).catch(()=>{});
 }
 
 function editarPerito(i) {
@@ -840,14 +851,17 @@ async function salvarPerito() {
   const email = document.getElementById('p-email').value.trim();
   const gerencia = document.getElementById('p-gerencia').value;
   if (!nome || !email) { toast('⚠️ Nome e e-mail são obrigatórios!','#f97316'); return; }
-  try {
-    await fetch(webUrl, { method:'POST', body:JSON.stringify({action:'salvarPerito',nome,email,gerencia}) });
-  } catch(e) {}
   const idx = peritos.findIndex(p=>p.nome.toUpperCase()===nome.toUpperCase());
   if (idx>=0) peritos[idx] = {nome,email,gerencia};
   else peritos.push({nome,email,gerencia});
   render(); limparPerito();
   toast('✅ Perito salvo com sucesso!');
+  // Sync em background
+  fetch(webUrl, {
+    method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({action:'salvarPerito', nome, email, gerencia})
+  }).catch(()=>{});
 }
 
 function limparPerito() {
