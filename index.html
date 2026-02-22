@@ -444,7 +444,7 @@ let data = [];
 let logData = [];
 let peritos = [];
 let dadosPendentesImport = null;
-const API_URL = 'https://script.google.com/macros/s/AKfycbxqxNFt9yUiX9ZexmzWxixyGzQE_2rOcfY-C2jN60GtzEyK9D-hAyQ7Am2k3woMGXYn/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzjDH9P4y-XY9CknyP9IG2PLMDFrSl5--S23SOuu7323WQhMkXCRM1_FlChcSJqcEHt/exec';
 let webUrl = localStorage.getItem('politec_url') || API_URL;
 
 // ══════════════════════════════════════════
@@ -594,8 +594,7 @@ async function confirmarImportacao() {
 }
 
 function cancelarImportacao() {
-  dadosPendentesImportBkp = dadosPendentesImport; // guardar para envio à planilha
-  dadosPendentesImport = null;
+  dadosPendentesImport = null; // não toca no backup — ele é gerenciado por confirmarImportacao
   document.getElementById('upload-result').style.display = 'none';
   document.getElementById('upload-zone').style.display = 'block';
   document.getElementById('file-input').value = '';
