@@ -332,6 +332,22 @@ tbody td{padding:12px 16px;font-size:13px;vertical-align:middle;}
   </div>
 </div>
 
+<!-- ════ MODAL RESETAR SENHA (admin) ════ -->
+<div class="modal-overlay" id="modal-reset-overlay">
+  <div class="modal" style="width:380px;">
+    <div class="modal-title">🔄 Resetar Senha</div>
+    <div class="modal-sub" id="reset-usuario-nome">Definir nova senha para o usuário</div>
+    <input type="hidden" id="reset-email-alvo">
+    <div style="margin-bottom:10px;"><label class="auth-label">Nova Senha</label><input id="reset-senha-nova" type="password" class="auth-input" placeholder="Mínimo 6 caracteres"></div>
+    <div style="margin-bottom:16px;"><label class="auth-label">Confirmar Senha</label><input id="reset-senha-confirma" type="password" class="auth-input" placeholder="Repita a senha"></div>
+    <div class="auth-err" id="reset-erro"></div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="fecharModalReset()">Cancelar</button>
+      <button class="btn-primary" onclick="confirmarResetSenha()">🔄 Redefinir Senha</button>
+    </div>
+  </div>
+</div>
+
 <div class="mesh-bg"></div>
 
 <!-- HEADER -->
@@ -699,7 +715,10 @@ async function carregarUsuarios() {
         <td style="padding:9px 12px;"><div style="font-size:13px;font-weight:600;color:#fff;">${u.nome}</div><div style="font-size:11px;color:rgba(255,255,255,.4);">${u.email}</div></td>
         <td style="padding:9px 12px;"><span class="role-badge ${u.role==='admin'?'role-admin':'role-usuario'}">${u.role==='admin'?'⭐ Admin':'👤 Usuário'}</span></td>
         <td style="padding:9px 12px;text-align:center;">${u.email!==sessaoAtual?.email?
-          `<button onclick="toggleUsuario('${u.email}',${!u.ativo})" style="background:${u.ativo?'rgba(239,68,68,.15)':'rgba(74,222,128,.15)'};color:${u.ativo?'#f87171':'#4ade80'};border:1px solid ${u.ativo?'rgba(239,68,68,.3)':'rgba(74,222,128,.3)'};border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;">${u.ativo?'🚫 Desativar':'✅ Ativar'}</button>`
+          `<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+            <button onclick="abrirModalReset('${u.email}','${u.nome.replace(/'/g,"\\'")}')" style="background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;">🔄 Resetar</button>
+            <button onclick="toggleUsuario('${u.email}',${!u.ativo})" style="background:${u.ativo?'rgba(239,68,68,.15)':'rgba(74,222,128,.15)'};color:${u.ativo?'#f87171':'#4ade80'};border:1px solid ${u.ativo?'rgba(239,68,68,.3)':'rgba(74,222,128,.3)'};border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;">${u.ativo?'🚫 Desativar':'✅ Ativar'}</button>
+          </div>`
           :'<span style="font-size:11px;color:rgba(255,255,255,.3);">você</span>'}</td>
       </tr>`).join('')}</tbody></table>`;
   } catch { body.innerHTML='<div style="color:#f87171;padding:12px;">Erro ao carregar.</div>'; }
@@ -731,6 +750,37 @@ async function toggleUsuario(email,ativo) {
   } catch { toast('❌ Erro','#ef4444'); }
 }
 
+function abrirModalReset(email, nome) {
+  document.getElementById('reset-email-alvo').value = email;
+  document.getElementById('reset-usuario-nome').textContent = `Usuário: ${nome} (${email})`;
+  document.getElementById('reset-senha-nova').value = '';
+  document.getElementById('reset-senha-confirma').value = '';
+  document.getElementById('reset-erro').textContent = '';
+  document.getElementById('modal-reset-overlay').classList.add('open');
+}
+function fecharModalReset() { document.getElementById('modal-reset-overlay').classList.remove('open'); }
+
+async function confirmarResetSenha() {
+  const email = document.getElementById('reset-email-alvo').value;
+  const nova = document.getElementById('reset-senha-nova').value;
+  const conf = document.getElementById('reset-senha-confirma').value;
+  const erroEl = document.getElementById('reset-erro');
+  erroEl.textContent = '';
+  if (!nova) { erroEl.textContent = 'Informe a nova senha.'; return; }
+  if (nova.length < 6) { erroEl.textContent = 'Mínimo 6 caracteres.'; return; }
+  if (nova !== conf) { erroEl.textContent = 'As senhas não coincidem.'; return; }
+  try {
+    const r = await fetch(webUrl, {method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'resetarSenha', token:sessaoAtual?.token, email, novaSenha:nova})
+    }).then(x=>x.json());
+    if (r.ok) {
+      toast('✅ Senha redefinida! Informe o usuário.');
+      fecharModalReset();
+    } else { erroEl.textContent = r.erro || 'Erro ao redefinir.'; }
+  } catch { erroEl.textContent = 'Erro de conexão.'; }
+}
+
 // Enter no login
 document.addEventListener('DOMContentLoaded', () => {
   ['login-email','login-senha'].forEach(id => {
@@ -739,6 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('modal-senha-overlay')?.addEventListener('click', e => { if(e.target===e.currentTarget) fecharModalSenha(); });
   document.getElementById('modal-usuarios-overlay')?.addEventListener('click', e => { if(e.target===e.currentTarget) fecharModalUsuarios(); });
+  document.getElementById('modal-reset-overlay')?.addEventListener('click', e => { if(e.target===e.currentTarget) fecharModalReset(); });
 });
 
 // ══════════════════════════════════════════
@@ -748,7 +799,7 @@ let data = [];
 let logData = [];
 let peritos = [];
 let dadosPendentesImport = null;
-const API_URL = 'https://script.google.com/macros/s/AKfycbwO_z9DkrbVUA1jdKhKxSQhVD-ZITalbuimf05bpfluoNVX3LB-Lv5vkLTwBTtq3RZJ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzspeKIFX-2CNQ1f38szPxRoPgb1QsWtdbEO6XxjMBO2WzS9_tmDDosrT017AW4ZP5t/exec';
 let webUrl = localStorage.getItem('politec_url') || API_URL;
 
 // ══════════════════════════════════════════
