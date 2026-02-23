@@ -611,6 +611,7 @@ async function fazerLogin() {
   try {
     const r = await fetch(webUrl, {
       method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'login', email, senha })
     }).then(x=>x.json());
     if (r.ok) {
@@ -640,7 +641,11 @@ async function criarAdmin() {
   if(!nome||!email||!senha){erroEl.textContent='Preencha todos os campos.';return;}
   if(senha.length<6){erroEl.textContent='Senha deve ter ao menos 6 caracteres.';return;}
   try {
-    const r = await fetch(`${webUrl}?action=primeiroAdmin&email=${encodeURIComponent(email)}&nome=${encodeURIComponent(nome)}&senha=${encodeURIComponent(senha)}`).then(x=>x.json());
+    const r = await fetch(webUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'primeiroAdmin', email, nome, senha })
+    }).then(x=>x.json());
     if(r.ok){toast('✅ Admin criado! Faça login.');mostrarLogin();document.getElementById('login-email').value=email;}
     else erroEl.textContent=r.erro||'Erro.';
   } catch { erroEl.textContent='Erro de conexão.'; }
@@ -664,6 +669,7 @@ async function salvarNovaSenha() {
   if(nova.length<6){erroEl.textContent='Mínimo 6 caracteres.';return;}
   try {
     const r = await fetch(webUrl,{method:'POST',
+      headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({action:'alterarSenha',token:sessaoAtual?.token,senhaAtual:atual,novaSenha:nova})}).then(x=>x.json());
     if(r.ok){toast('✅ Senha alterada!');fecharModalSenha();}
     else erroEl.textContent=r.erro||'Erro.';
@@ -708,6 +714,7 @@ async function convidarUsuario() {
   if(!nome||!email){erroEl.textContent='Preencha nome e e-mail.';return;}
   try {
     const r=await fetch(webUrl,{method:'POST',
+      headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({action:'convidarUsuario',token:sessaoAtual?.token,email,nome,role})}).then(x=>x.json());
     if(r.ok){erroEl.style.color='#4ade80';erroEl.textContent=r.msg||'✅ Cadastrado!';document.getElementById('conv-nome').value='';document.getElementById('conv-email').value='';await carregarUsuarios();}
     else erroEl.textContent=r.erro||'Erro.';
@@ -717,6 +724,7 @@ async function convidarUsuario() {
 async function toggleUsuario(email,ativo) {
   try {
     const r=await fetch(webUrl,{method:'POST',
+      headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({action:'toggleUsuario',token:sessaoAtual?.token,email,ativo})}).then(x=>x.json());
     if(r.ok){toast(ativo?'✅ Ativado':'🚫 Desativado');await carregarUsuarios();}
     else toast('❌ '+(r.erro||'Erro'),'#ef4444');
