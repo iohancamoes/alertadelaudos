@@ -611,7 +611,6 @@ async function fazerLogin() {
   try {
     const r = await fetch(webUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'login', email, senha })
     }).then(x=>x.json());
     if (r.ok) {
@@ -664,7 +663,7 @@ async function salvarNovaSenha() {
   if(nova!==conf){erroEl.textContent='Senhas não coincidem.';return;}
   if(nova.length<6){erroEl.textContent='Mínimo 6 caracteres.';return;}
   try {
-    const r = await fetch(webUrl,{method:'POST',headers:{'Content-Type':'application/json'},
+    const r = await fetch(webUrl,{method:'POST',
       body:JSON.stringify({action:'alterarSenha',token:sessaoAtual?.token,senhaAtual:atual,novaSenha:nova})}).then(x=>x.json());
     if(r.ok){toast('✅ Senha alterada!');fecharModalSenha();}
     else erroEl.textContent=r.erro||'Erro.';
@@ -708,7 +707,7 @@ async function convidarUsuario() {
   erroEl.style.color='#f87171'; erroEl.textContent='';
   if(!nome||!email){erroEl.textContent='Preencha nome e e-mail.';return;}
   try {
-    const r=await fetch(webUrl,{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch(webUrl,{method:'POST',
       body:JSON.stringify({action:'convidarUsuario',token:sessaoAtual?.token,email,nome,role})}).then(x=>x.json());
     if(r.ok){erroEl.style.color='#4ade80';erroEl.textContent=r.msg||'✅ Cadastrado!';document.getElementById('conv-nome').value='';document.getElementById('conv-email').value='';await carregarUsuarios();}
     else erroEl.textContent=r.erro||'Erro.';
@@ -717,7 +716,7 @@ async function convidarUsuario() {
 
 async function toggleUsuario(email,ativo) {
   try {
-    const r=await fetch(webUrl,{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch(webUrl,{method:'POST',
       body:JSON.stringify({action:'toggleUsuario',token:sessaoAtual?.token,email,ativo})}).then(x=>x.json());
     if(r.ok){toast(ativo?'✅ Ativado':'🚫 Desativado');await carregarUsuarios();}
     else toast('❌ '+(r.erro||'Erro'),'#ef4444');
