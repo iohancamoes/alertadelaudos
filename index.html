@@ -685,7 +685,7 @@ function prazoStr(dateStr) {
   try {
     const dt = parseDateBR(dateStr);
     if (!dt) return '—';
-    const prazo = new Date(dt); prazo.setDate(prazo.getDate() + 9);
+    const prazo = new Date(dt); prazo.setDate(prazo.getDate() + 10);
     return prazo.toLocaleDateString('pt-BR');
   } catch { return '—'; }
 }
@@ -968,7 +968,7 @@ function simularEmail() {
   console.log('Prévia e-mail — amostra da[0]:', protos[0]?.da, '| tipo:', typeof protos[0]?.da);
   const linhas = protos.map(o=>{
     const daStr = formatDateBR(o.da);
-    const d=diasDe(o.da), atraso=Math.max(0,d-9);
+    const d=diasDe(o.da), atraso=Math.max(0,d-10);
     return `<tr style="background:#ffffff;color:#222222"><td style="padding:8px 12px;border-bottom:1px solid #e8edf5;font-family:monospace;font-size:13px;color:#1a2a5e;font-weight:600;background:#ffffff">${o.p}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e8edf5;font-size:13px;color:#222222 !important">${daStr}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e8edf5;font-size:13px;color:#222222 !important">${prazoStr(o.da)}</td>
