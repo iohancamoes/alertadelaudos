@@ -609,7 +609,11 @@ async function fazerLogin() {
   if (!webUrl) { erroEl.textContent='Configure a URL da API primeiro.'; return; }
   btn.disabled=true; btn.textContent='⏳ Entrando…';
   try {
-    const r = await fetch(`${webUrl}?action=login&email=${encodeURIComponent(email)}&senha=${encodeURIComponent(senha)}`).then(x=>x.json());
+    const r = await fetch(webUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', email, senha })
+    }).then(x=>x.json());
     if (r.ok) {
       const exp = new Date(); exp.setHours(exp.getHours()+8);
       setSessao({...r, expira: exp.toISOString()});
