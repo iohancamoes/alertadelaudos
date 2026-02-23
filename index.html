@@ -429,7 +429,7 @@ tbody td{padding:12px 16px;font-size:13px;vertical-align:middle;}
   <div class="modal" style="width:620px;max-height:80vh;overflow-y:auto;">
     <div class="modal-title">👁️ Preview do E-mail</div>
     <div class="modal-sub">Visualização do e-mail que será enviado ao perito</div>
-    <div id="email-preview-body" style="border:1px solid var(--glass-border);border-radius:10px;overflow:hidden;"></div>
+    <div id="email-preview-body" style="border:1px solid var(--glass-border);border-radius:10px;overflow:hidden;color:#333;"></div>
     <div class="modal-footer"><button class="btn-ghost" onclick="fecharModal()">Fechar</button></div>
   </div>
 </div>
@@ -961,15 +961,17 @@ async function dispararAgora() {
 
 // ── Simular email ──
 function simularEmail() {
-  const pend = data.filter(o=>o.st==='Pendente'&&diasDe(o.da)>10);
+  const pend = data.filter(o=>o.st==='Pendente'&&diasDe(o.da)>=10);
   if (!pend.length) { toast('Nenhum protocolo em atraso para simular','#f97316'); return; }
   const perito = pend[0].perito;
   const protos = pend.filter(o=>o.perito===perito);
+  console.log('Prévia e-mail — amostra da[0]:', protos[0]?.da, '| tipo:', typeof protos[0]?.da);
   const linhas = protos.map(o=>{
-    const d=diasDe(o.da), atraso=Math.max(0,d-10);
+    const daStr = formatDateBR(o.da);
+    const d=diasDe(o.da), atraso=Math.max(0,d-9);
     return `<tr><td style="padding:8px 12px;border-bottom:1px solid #e8edf5;font-family:monospace;font-size:13px;color:#1a2a5e;font-weight:600">${o.p}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e8edf5;font-size:13px">${o.da}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e8edf5;font-size:13px">${prazoStr(o.da)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8edf5;font-size:13px;color:#333">${daStr}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8edf5;font-size:13px;color:#333">${prazoStr(o.da)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e8edf5;text-align:center"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700">${atraso} dia(s)</span></td>
       <td style="padding:8px 12px;border-bottom:1px solid #e8edf5;text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700">Pendente</span></td></tr>`;
   }).join('');
