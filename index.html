@@ -737,7 +737,7 @@ let data = [];
 let logData = [];
 let peritos = [];
 let dadosPendentesImport = null;
-const API_URL = 'https://script.google.com/macros/s/AKfycbzPTTPeVht9zg8mvx-sq0GqignNH0XUwbqm0_5n4dR4ez8smHwGPprAnT_iFfq7bUHJ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwO_z9DkrbVUA1jdKhKxSQhVD-ZITalbuimf05bpfluoNVX3LB-Lv5vkLTwBTtq3RZJ/exec';
 let webUrl = localStorage.getItem('politec_url') || API_URL;
 
 // ══════════════════════════════════════════
@@ -938,7 +938,7 @@ async function confirmarImportacao() {
     for (let c = 0; c < chunks.length; c++) {
       const payload = JSON.stringify(chunks[c]);
       const encoded = encodeURIComponent(payload);
-      const url = `${webUrl}?action=importar&dados=${encoded}&chunk=${c}&totalChunks=${chunks.length}`;
+      const url = `${webUrl}?action=importar&token=${encodeURIComponent(sessaoAtual?.token||'')}&dados=${encoded}&chunk=${c}&totalChunks=${chunks.length}`;
       let result;
       try {
         const res = await fetch(url);
@@ -975,7 +975,7 @@ function cancelarImportacao() {
 // ══════════════════════════════════════════
 async function carregarDados() {
   try {
-    const fetchJson = url => fetch(url).then(r => r.json());
+    const fetchJson = url => fetch(url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(sessaoAtual?.token||'')).then(r => r.json());
     const [ocorr, lg, per] = await Promise.all([
       fetchJson(webUrl + '?action=listar'),
       fetchJson(webUrl + '?action=log'),
@@ -1154,7 +1154,7 @@ function entregar(i) {
   data[i].st = 'Entregue';
   render();
   toast('✅ Laudo marcado como entregue!');
-  fetch(`${webUrl}?action=entregar&protocolo=${encodeURIComponent(proto)}`)
+  fetch(`${webUrl}?action=entregar&token=${encodeURIComponent(sessaoAtual?.token||'')}&protocolo=${encodeURIComponent(proto)}`)
     .catch(() => {});
 }
 
@@ -1224,7 +1224,7 @@ async function salvarEmailInline(idx, email, nome) {
   else peritos.push({ nome, email, gerencia });
   render();
   toast(`✅ E-mail de ${nome.split(' ')[0]} salvo!`);
-  fetch(`${webUrl}?action=salvarPerito&nome=${encodeURIComponent(nome)}&email=${encodeURIComponent(email)}&gerencia=${encodeURIComponent(gerencia||'')}`)
+  fetch(`${webUrl}?action=salvarPerito&token=${encodeURIComponent(sessaoAtual?.token||'')}&nome=${encodeURIComponent(nome)}&email=${encodeURIComponent(email)}&gerencia=${encodeURIComponent(gerencia||'')}`)
     .catch(() => {});
 }
 
@@ -1251,7 +1251,7 @@ async function salvarPerito() {
   else peritos.push({nome,email,gerencia});
   render(); limparPerito();
   toast('✅ Perito salvo com sucesso!');
-  fetch(`${webUrl}?action=salvarPerito&nome=${encodeURIComponent(nome)}&email=${encodeURIComponent(email)}&gerencia=${encodeURIComponent(gerencia||'')}`)
+  fetch(`${webUrl}?action=salvarPerito&token=${encodeURIComponent(sessaoAtual?.token||'')}&nome=${encodeURIComponent(nome)}&email=${encodeURIComponent(email)}&gerencia=${encodeURIComponent(gerencia||'')}`)
     .catch(() => {});
 }
 
@@ -1313,7 +1313,7 @@ function calcularProximoDisparo() {
 async function dispararAgora() {
   toast('⏳ Disparando alertas…','rgba(59,130,246,0.9)');
   try {
-    const res = await fetch(`${webUrl}?action=dispararAlertas`);
+    const res = await fetch(`${webUrl}?action=dispararAlertas&token=${encodeURIComponent(sessaoAtual?.token||'')}`);
     const r = await res.json();
     toast(`✅ ${r.emailsEnviados} e-mail(s) enviado(s)!`);
     carregarDados();
