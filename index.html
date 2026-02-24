@@ -799,7 +799,7 @@ let data = [];
 let logData = [];
 let peritos = [];
 let dadosPendentesImport = null;
-const API_URL = 'https://script.google.com/macros/s/AKfycbyRaXgMPVJ3eNARO1JSk4YK3r-Y7W-wtrgWwcQ3hbQvUJq1CTGo6bzC-kkNO67b6wxS/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzPTTPeVht9zg8mvx-sq0GqignNH0XUwbqm0_5n4dR4ez8smHwGPprAnT_iFfq7bUHJ/exec';
 let webUrl = localStorage.getItem('politec_url') || API_URL;
 
 // ══════════════════════════════════════════
@@ -1377,11 +1377,18 @@ function calcularProximoDisparo() {
 async function dispararAgora() {
   toast('⏳ Disparando alertas…','rgba(59,130,246,0.9)');
   try {
-    const res = await fetch(`${webUrl}?action=dispararAlertas&token=${encodeURIComponent(sessaoAtual?.token||'')}`);
-    const r = await res.json();
-    toast(`✅ ${r.emailsEnviados} e-mail(s) enviado(s)!`);
+    const r = await fetch(webUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action:'dispararAlertas', token:sessaoAtual?.token||''})
+    }).then(x=>x.json());
+    if (r.ok) {
+      toast(`✅ ${r.enviados} e-mail(s) enviado(s)!`);
+    } else {
+      toast(`⚠️ ${r.mensagem || r.erro || 'Nenhum pendente encontrado'}`, '#f97316');
+    }
     carregarDados();
-  } catch(e) { toast('⚠️ Modo demo: alertas simulados','#f97316'); }
+  } catch(e) { toast('⚠️ Erro ao disparar alertas','#ef4444'); }
 }
 
 // ── Simular email ──
