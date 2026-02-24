@@ -623,20 +623,32 @@ async function fazerLogin() {
   erroEl.textContent = '';
   if (!email||!senha) { erroEl.textContent='Preencha e-mail e senha.'; return; }
   if (!webUrl) { erroEl.textContent='Configure a URL da API primeiro.'; return; }
-  btn.disabled=true; btn.textContent='⏳ Entrando…';
+  btn.disabled=true; btn.textContent='Entrando...';
+  console.log('%c[SAL] LOGIN iniciado', 'color:#60a5fa;font-weight:bold');
+  console.log('[SAL] webUrl =', webUrl);
+  console.log('[SAL] email =', email);
   try {
+    console.log('[SAL] POST login → enviando...');
     const r = await fetch(webUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'login', email, senha })
-    }).then(x=>x.json());
+    }).then(x => { console.log('[SAL] HTTP status login =', x.status); return x.json(); });
+    console.log('[SAL] Resposta login =', JSON.stringify(r));
     if (r.ok) {
       const exp = new Date(); exp.setHours(exp.getHours()+8);
       setSessao({...r, expira: exp.toISOString()});
+      console.log('%c[SAL] Login OK, sessao salva', 'color:#4ade80;font-weight:bold');
       mostrarApp();
-    } else { erroEl.textContent = r.erro||'Erro ao fazer login.'; }
-  } catch { erroEl.textContent='Erro de conexão.'; }
-  btn.disabled=false; btn.textContent='🔐 Entrar';
+    } else {
+      console.warn('[SAL] Login falhou:', r.erro);
+      erroEl.textContent = r.erro||'Erro ao fazer login.';
+    }
+  } catch(err) {
+    console.error('[SAL] EXCECAO no login:', err.message, err);
+    erroEl.textContent='Erro de conexao.';
+  }
+  btn.disabled=false; btn.textContent='Entrar';
 }
 
 async function fazerLogout() {
@@ -1036,15 +1048,31 @@ function cancelarImportacao() {
 // CARREGAR DADOS DA API
 // ══════════════════════════════════════════
 async function carregarDados() {
+  console.log('%c[SAL] carregarDados() iniciado', 'color:#60a5fa;font-weight:bold');
+  console.log('[SAL] webUrl =', webUrl);
+  console.log('[SAL] token =', sessaoAtual?.token ? sessaoAtual.token.slice(0,12)+'...' : 'AUSENTE');
   try {
-    const fetchJson = url => fetch(url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(sessaoAtual?.token||'')).then(r => r.json());
+    const fetchJson = async (url) => {
+      const action = url.split('action=')[1]?.split('&')[0] || url;
+      const fullUrl = url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(sessaoAtual?.token||'');
+      console.log('[SAL] GET', action, '→', fullUrl.slice(0,80)+'...');
+      const res = await fetch(fullUrl);
+      console.log('[SAL] HTTP', res.status, action);
+      const json = await res.json();
+      console.log('[SAL] Resposta', action, '→', JSON.stringify(json).slice(0,150));
+      return json;
+    };
     const [ocorr, lg, per] = await Promise.all([
       fetchJson(webUrl + '?action=listar'),
       fetchJson(webUrl + '?action=log'),
       fetchJson(webUrl + '?action=peritos')
     ]);
 
-    if (!Array.isArray(ocorr)) throw new Error('resposta inválida');
+    console.log('[SAL] ocorr:', Array.isArray(ocorr) ? ocorr.length+' itens' : JSON.stringify(ocorr).slice(0,100));
+    console.log('[SAL] log:', Array.isArray(lg) ? lg.length+' itens' : JSON.stringify(lg).slice(0,100));
+    console.log('[SAL] peritos:', Array.isArray(per) ? per.length+' itens' : JSON.stringify(per).slice(0,100));
+
+    if (!Array.isArray(ocorr)) throw new Error('resposta invalida: ' + JSON.stringify(ocorr).slice(0,100));
 
     data = ocorr.map(o => ({
       p: o.protocolo, perito: o.perito, ep: o.emailPerito, ec: o.emailChefe,
@@ -1056,10 +1084,11 @@ async function carregarDados() {
     })) : [];
     peritos = Array.isArray(per) ? per : [];
     render();
-    toast('✅ Dados sincronizados!');
+    toast('Dados sincronizados!');
+    console.log('%c[SAL] carregarDados() OK', 'color:#4ade80;font-weight:bold');
   } catch(e) {
-    console.warn('Falha ao carregar da API:', e.message);
-    mockInit(); // exibe vazio
+    console.error('%c[SAL] ERRO em carregarDados():', 'color:#f87171;font-weight:bold', e.message);
+    mockInit();
   }
 }
 
@@ -1375,20 +1404,33 @@ function calcularProximoDisparo() {
 
 // ── Disparar Alertas ──
 async function dispararAgora() {
-  toast('⏳ Disparando alertas…','rgba(59,130,246,0.9)');
+  console.log('%c[SAL] dispararAgora() iniciado', 'color:#60a5fa;font-weight:bold');
+  console.log('[SAL] webUrl =', webUrl);
+  console.log('[SAL] token =', sessaoAtual?.token ? sessaoAtual.token.slice(0,12)+'...' : 'AUSENTE');
+  toast('Disparando alertas...','rgba(59,130,246,0.9)');
   try {
-    const r = await fetch(webUrl, {
+    const payload = {action:'dispararAlertas', token:sessaoAtual?.token||''};
+    console.log('[SAL] POST dispararAlertas payload =', JSON.stringify(payload));
+    const res = await fetch(webUrl, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action:'dispararAlertas', token:sessaoAtual?.token||''})
-    }).then(x=>x.json());
+      body: JSON.stringify(payload)
+    });
+    console.log('[SAL] HTTP status dispararAlertas =', res.status);
+    const r = await res.json();
+    console.log('[SAL] Resposta dispararAlertas =', JSON.stringify(r));
     if (r.ok) {
-      toast(`✅ ${r.enviados} e-mail(s) enviado(s)!`);
+      toast('OK: ' + r.enviados + ' e-mail(s) enviado(s)!');
+      console.log('%c[SAL] Alertas disparados OK: ' + r.enviados, 'color:#4ade80;font-weight:bold');
     } else {
-      toast(`⚠️ ${r.mensagem || r.erro || 'Nenhum pendente encontrado'}`, '#f97316');
+      console.warn('[SAL] dispararAlertas nao OK:', r);
+      toast('Aviso: ' + (r.mensagem || r.erro || 'Nenhum pendente'), '#f97316');
     }
     carregarDados();
-  } catch(e) { toast('⚠️ Erro ao disparar alertas','#ef4444'); }
+  } catch(e) {
+    console.error('[SAL] EXCECAO em dispararAgora():', e.message, e);
+    toast('ERRO ao disparar alertas','#ef4444');
+  }
 }
 
 // ── Simular email ──
@@ -1458,7 +1500,14 @@ if (webUrl) document.getElementById('cfg-url').value = webUrl;
 document.getElementById('modal-email').addEventListener('click', e => { if(e.target===e.currentTarget) fecharModal(); });
 
 // Função chamada pelo auth após login
-function initApp() { carregarDados(); }
+function initApp() {
+  console.log('%c[SAL] === SISTEMA ALERTA LAUDOS INICIADO ===', 'color:#fbbf24;font-weight:bold;font-size:14px');
+  console.log('[SAL] Data/hora:', new Date().toLocaleString('pt-BR'));
+  console.log('[SAL] webUrl configurado:', webUrl);
+  const s = getSessao();
+  console.log('[SAL] Sessao no localStorage:', s ? 'ENCONTRADA ('+s.email+')' : 'AUSENTE');
+  carregarDados();
+}
 
 // Inicia com verificação de autenticação
 inicializarAuth();
