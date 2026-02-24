@@ -799,7 +799,7 @@ let data = [];
 let logData = [];
 let peritos = [];
 let dadosPendentesImport = null;
-const API_URL = 'https://script.google.com/macros/s/AKfycbzspeKIFX-2CNQ1f38szPxRoPgb1QsWtdbEO6XxjMBO2WzS9_tmDDosrT017AW4ZP5t/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyRaXgMPVJ3eNARO1JSk4YK3r-Y7W-wtrgWwcQ3hbQvUJq1CTGo6bzC-kkNO67b6wxS/exec';
 let webUrl = localStorage.getItem('politec_url') || API_URL;
 
 // ══════════════════════════════════════════
@@ -1286,8 +1286,9 @@ async function salvarEmailInline(idx, email, nome) {
   else peritos.push({ nome, email, gerencia });
   render();
   toast(`✅ E-mail de ${nome.split(' ')[0]} salvo!`);
-  fetch(`${webUrl}?action=salvarPerito&token=${encodeURIComponent(sessaoAtual?.token||'')}&nome=${encodeURIComponent(nome)}&email=${encodeURIComponent(email)}&gerencia=${encodeURIComponent(gerencia||'')}`)
-    .catch(() => {});
+  fetch(webUrl, {method:'POST', headers:{'Content-Type':'text/plain'},
+    body: JSON.stringify({action:'salvarPerito', token:sessaoAtual?.token||'', nome, email, gerencia:gerencia||''})
+  }).catch(() => {});
 }
 
 function editarPerito(i) {
@@ -1313,8 +1314,9 @@ async function salvarPerito() {
   else peritos.push({nome,email,gerencia});
   render(); limparPerito();
   toast('✅ Perito salvo com sucesso!');
-  fetch(`${webUrl}?action=salvarPerito&token=${encodeURIComponent(sessaoAtual?.token||'')}&nome=${encodeURIComponent(nome)}&email=${encodeURIComponent(email)}&gerencia=${encodeURIComponent(gerencia||'')}`)
-    .catch(() => {});
+  fetch(webUrl, {method:'POST', headers:{'Content-Type':'text/plain'},
+    body: JSON.stringify({action:'salvarPerito', token:sessaoAtual?.token||'', nome, email, gerencia:gerencia||''})
+  }).catch(() => {});
 }
 
 function limparPerito() {
