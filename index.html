@@ -833,14 +833,13 @@ function processarExcel(file) {
       // ══════════════════════════════════════════════════════════
       // REGRAS DE IMPORTAÇÃO — IMUTÁVEIS
       // ──────────────────────────────────────────────────────────
-      // PENDENTE: B+D+F+I+L preenchidos | C vazio | E vazio | H vazio
-      // ENTREGUE: B+C+D+E+F+I+L preenchidos | H = "NÃO ENVIADO"
-      // IGNORADO: C preenchido + E vazio (laudo produzido aguardando liberação)
+      // PENDENTE: B+F+I+L preenchidos → Status Pendente
+      // IGNORADO (silencioso): L vazio → linha descartada sem aviso ao usuário
+      //   Motivo: sem NOME_SERVIDOR não há como vincular e-mail para cobrança
+      // Não há importação de Entregue nesta versão
       // ══════════════════════════════════════════════════════════
 
       const pendentes  = [];
-      const entregues  = [];
-      const ignorados  = [];
       let   semData    = 0;
       let   linhasComDados = 0;
 
@@ -852,38 +851,19 @@ function processarExcel(file) {
         if (!r) continue;
 
         const B = r[1],   // NUMERO_PROTOCOLO
-              C = r[2],   // NUMERO_DOCUMENTO_TECNICO
-              D = r[3],   // DATA_CADASTRO_PROTOCOLO
-              E = r[4],   // DATA_ENVIO_DOCUMENTO_TECNICO
               F = r[5],   // DATA_ATRIBUICAO_SERVIDOR
-              H = r[7],   // STAT_DOCUMENTO_TECNICO
               I = r[8],   // STAT_PROTOCOLO
               L = r[11];  // NOME_SERVIDOR
 
         // Ignora linhas completamente vazias
-        if (vazio(B) && vazio(C) && vazio(D) && vazio(F) && vazio(L)) continue;
+        if (vazio(B) && vazio(F) && vazio(I) && vazio(L)) continue;
         linhasComDados++;
 
-        // ── CASO IGNORADO: laudo produzido aguardando liberação no sistema ──
-        // C preenchido + E vazio → não é pendente nem entregue para fins de cobrança
-        if (preench(C) && vazio(E)) {
-          ignorados.push({ protocolo: String(B||'').trim(), perito: String(L||'').trim() });
-          continue;
-        }
+        // ── IGNORADO (silencioso): L vazio → sem servidor, sem cobrança possível ──
+        if (vazio(L)) continue;
 
-        // ── CASO ENTREGUE ──
-        // B+C+D+E+F+I+L preenchidos + H = "NÃO ENVIADO"
-        if (preench(B) && preench(C) && preench(D) && preench(E) && preench(F) &&
-            String(H||'').trim().toUpperCase() === 'NÃO ENVIADO' && preench(I) && preench(L)) {
-          entregues.push({ protocolo: String(B).trim(), perito: String(L).trim() });
-          continue;
-        }
-
-        // ── CASO PENDENTE ──
-        // B+D+F+I+L preenchidos + C vazio + E vazio + H vazio
-        if (preench(B) && vazio(C) && preench(D) && vazio(E) && preench(F) &&
-            vazio(H) && preench(I) && preench(L)) {
-
+        // ── CASO PENDENTE: B+F+I+L preenchidos ──
+        if (preench(B) && preench(F) && preench(I) && preench(L)) {
           let dataAtrib = F instanceof Date ? F : new Date(F);
           if (isNaN(dataAtrib.getTime())) { semData++; continue; }
 
@@ -893,15 +873,12 @@ function processarExcel(file) {
             dataAtribuicao: dataAtrib.toISOString(),
             status:         'Pendente'
           });
-          continue;
         }
-
-        // Linha com dados mas sem condição válida — conta como inválida
       }
 
       // Resultado
       dadosPendentesImport = pendentes;
-      mostrarResultadoImport(pendentes, entregues, ignorados, rows.length - 1, linhasComDados, semData);
+      mostrarResultadoImport(pendentes, rows.length - 1, linhasComDados, semData);
 
     } catch(err) {
       toast('❌ Erro ao processar arquivo: ' + err.message, '#ef4444');
@@ -910,53 +887,31 @@ function processarExcel(file) {
   reader.readAsArrayBuffer(file);
 }
 
-function mostrarResultadoImport(pendentes, entregues, ignorados, totalLinhas, linhasComDados, semData) {
+function mostrarResultadoImport(pendentes, totalLinhas, linhasComDados, semData) {
   const emailsConhecidos = new Set(peritos.filter(p => p.email).map(p => p.nome.toUpperCase()));
   const semEmail = [...new Set(pendentes.map(f => f.perito))].filter(n => !emailsConhecidos.has(n.toUpperCase()));
 
   // ── Chips de estatística ──────────────────────────────────────────
   let chips = `
     <div class="stat-chip chip-blue">📄 ${totalLinhas} linhas no arquivo</div>
-    <div class="stat-chip chip-green">✅ ${pendentes.length} pendentes</div>`;
-
-  if (entregues.length)
-    chips += `<div class="stat-chip" style="background:rgba(74,222,128,.15);color:#4ade80;border:1px solid rgba(74,222,128,.3);">📦 ${entregues.length} entregues</div>`;
-
-  if (ignorados.length)
-    chips += `<div class="stat-chip chip-orange">⏳ ${ignorados.length} aguardando liberação</div>`;
-
-  chips += `<div class="stat-chip chip-orange">📋 ${[...new Set(pendentes.map(f=>f.perito))].length} peritos</div>`;
+    <div class="stat-chip chip-green">⏳ ${pendentes.length} pendentes</div>
+    <div class="stat-chip chip-orange">📋 ${[...new Set(pendentes.map(f=>f.perito))].length} peritos</div>`;
 
   if (semEmail.length)
     chips += `<div class="stat-chip chip-red">⚠️ ${semEmail.length} sem e-mail</div>`;
 
   document.getElementById('result-stats').innerHTML = chips;
 
-  // ── Aviso central dependendo do resultado ─────────────────────────
+  // ── Aviso central ─────────────────────────────────────────────────
   let aviso = '';
 
-  if (pendentes.length === 0 && entregues.length === 0 && ignorados.length === 0) {
-    // Nenhuma condição válida encontrada
-    aviso = `<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:14px;color:#f87171;font-size:13px;margin-top:12px;">
-      ❌ <strong>Nenhum protocolo válido encontrado.</strong><br>
-      O arquivo não contém linhas que satisfaçam as condições de importação.<br>
-      Verifique se o arquivo exportado está no formato correto do sistema Atena.
-    </div>`;
-    // Esconde botão confirmar
-    document.getElementById('btn-confirmar-import')?.style && (document.getElementById('btn-confirmar-import').style.display = 'none');
-
-  } else if (pendentes.length === 0 && (entregues.length > 0 || ignorados.length > 0)) {
-    // Só entregues/aguardando — nada a importar como pendente
+  if (pendentes.length === 0) {
     aviso = `<div style="background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:10px;padding:14px;color:#4ade80;font-size:13px;margin-top:12px;">
       ✅ <strong>Não há laudos pendentes neste arquivo.</strong><br>
-      ${entregues.length ? `${entregues.length} laudo(s) já entregue(s) detectado(s). ` : ''}
-      ${ignorados.length ? `${ignorados.length} protocolo(s) com laudo produzido aguardando liberação no sistema (não cobráveis). ` : ''}
       Nenhuma importação foi realizada.
     </div>`;
     document.getElementById('btn-confirmar-import')?.style && (document.getElementById('btn-confirmar-import').style.display = 'none');
-
   } else {
-    // Há pendentes — mostra aviso de e-mails e botão confirmar
     if (semEmail.length) {
       aviso = `<div class="sem-email-lista">
         <div class="sem-email-titulo">⚠️ ${semEmail.length} perito(s) sem e-mail — alertas não serão enviados para eles. Cadastre na aba Peritos.</div>
@@ -964,11 +919,6 @@ function mostrarResultadoImport(pendentes, entregues, ignorados, totalLinhas, li
       </div>`;
     } else {
       aviso = '<div style="color:#4ade80;font-size:13px;margin-top:8px;">✅ Todos os peritos têm e-mail cadastrado!</div>';
-    }
-    if (ignorados.length) {
-      aviso += `<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px;color:#fbbf24;font-size:12px;margin-top:8px;">
-        ⏳ ${ignorados.length} protocolo(s) ignorado(s): laudo produzido, aguardando liberação no sistema Atena. Não são cobráveis administrativamente.
-      </div>`;
     }
     document.getElementById('btn-confirmar-import')?.style && (document.getElementById('btn-confirmar-import').style.display = '');
   }
