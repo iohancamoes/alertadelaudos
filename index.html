@@ -1338,14 +1338,27 @@ async function salvarPerito() {
   const email = document.getElementById('p-email').value.trim();
   const gerencia = document.getElementById('p-gerencia').value;
   if (!nome || !email) { toast('⚠️ Nome e e-mail são obrigatórios!','#f97316'); return; }
-  const idx = peritos.findIndex(p=>p.nome.toUpperCase()===nome.toUpperCase());
-  if (idx>=0) peritos[idx] = {nome,email,gerencia};
-  else peritos.push({nome,email,gerencia});
-  render(); limparPerito();
-  toast('✅ Perito salvo com sucesso!');
-  fetch(webUrl, {method:'POST', headers:{'Content-Type':'text/plain'},
-    body: JSON.stringify({action:'salvarPerito', token:sessaoAtual?.token||'', nome, email, gerencia:gerencia||''})
-  }).catch(() => {});
+  console.log('[SAL] salvarPerito:', nome, email);
+  try {
+    const r = await fetch(webUrl, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'salvarPerito', token:sessaoAtual?.token||'', nome, email, gerencia:gerencia||''})
+    }).then(x=>x.json());
+    console.log('[SAL] resposta salvarPerito:', JSON.stringify(r));
+    if (r.ok) {
+      const idx = peritos.findIndex(p=>p.nome.toUpperCase()===nome.toUpperCase());
+      if (idx>=0) peritos[idx] = {nome,email,gerencia};
+      else peritos.push({nome,email,gerencia});
+      render(); limparPerito();
+      toast('✅ Perito salvo com sucesso!');
+    } else {
+      toast('❌ Erro ao salvar: ' + (r.erro||'erro desconhecido'), '#ef4444');
+    }
+  } catch(e) {
+    console.error('[SAL] ERRO salvarPerito:', e.message);
+    toast('❌ Erro de conexão ao salvar perito', '#ef4444');
+  }
 }
 
 function limparPerito() {
